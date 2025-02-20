@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Verificar si se proporcionó una dirección IP como argumento
+if [ -z "$1" ]; then
+    echo "Uso: recon ip_victima"
+    exit 1
+fi
+
+IP=$1
+OUTPUT_FILE="recon.txt"
+
+# Limpiar el archivo de salida si existe
+> $OUTPUT_FILE
+
+# Función para identificar el TTL y sistema operativo
+function identify_ttl_os() {
+    echo "[+] Identificando TTL y sistema operativo..." | tee -a $OUTPUT_FILE
+    TTL=$(ping -c 1 $IP | grep 'ttl=' | awk -F'ttl=' '{print $2}' | awk '{print $1}')
+    
+    if [ -z "$TTL" ]; then
+        echo "[-] Error: No se pudo determinar el TTL." | tee -a $OUTPUT_FILE
+    else
+        if [ $TTL -le 64 ]; then
+            OS="Linux/Unix"
+        elif [ $TTL -le 128 ]; then
+            OS="Windows"
+        else
+            OS="Desconocido"
+        fi
+        echo "TTL: $TTL" | tee -a $OUTPUT_FILE
+        echo "Sistema Operativo: $OS" | tee -a $OUTPUT_FILE
+    fi
+}
+
+# Función para ejecutar Nmap
+function run_nmap() {
+    echo "[+] Ejecutando Nmap para escaneo de puertos y servicios..." | tee -a $OUTPUT_FILE
+    nmap -sS -sV -Pn $IP -oN - | tee -a $OUTPUT_FILE
+}
+
+# Función para ejecutar Gobuster
+function run_gobuster() {
+    echo "[+] Ejecutando Gobuster para listar directorios..." | tee -a $OUTPUT_FILE
+    gobuster dir -u http://$IP -w /usr/share/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-medium.txt -x .php,.py,.txt,.html | tee -a $OUTPUT_FILE
+}
+
+# Función para ejecutar WhatWeb
+function run_whatweb() {
+    echo "[+] Ejecutando WhatWeb para identificar tecnologías..." | tee -a $OUTPUT_FILE
+    whatweb http://$IP | tee -a $OUTPUT_FILE
+}
+
+# Llamar a las funciones
+identify_ttl_os
+run_nmap
+run_gobuster
+run_whatweb
+
+echo "[+] Proceso de reconocimiento finalizado. Los resultados se han guardado en $OUTPUT_FILE."
